@@ -104,6 +104,22 @@ with st.sidebar:
                           max_value=100, value=75, step=5,
                           help="Matches below this score are flagged. 75 recommended.")
     st.markdown("---")
+    st.markdown("**Restore Saved Pcodes**")
+    st.caption("Upload a previously downloaded lookup table to restore your confirmed pcodes across sessions.")
+    uploaded_lookup = st.file_uploader(
+        "monarch_custom_lookup.json", type=["json"],
+        key="lookup_upload", label_visibility="collapsed"
+    )
+    if uploaded_lookup is not None:
+        try:
+            restored = json.loads(uploaded_lookup.read())
+            save_custom_lookup(restored, CUSTOM_LOOKUP_PATH)
+            st.session_state["custom_lookup_json"] = json.dumps(restored, indent=2)
+            st.success(f"✅ Restored {len(restored)} confirmed pcodes.")
+            custom_lookup = restored
+        except Exception as e:
+            st.error(f"Could not read lookup file: {e}")
+    st.markdown("---")
     st.markdown(
         f"<small style='color:#888'>Monarch Investment Management<br>"
         f"Curated lookup: <b>{len(CURATED_LOOKUP)}</b> built-in entries<br>"
@@ -265,44 +281,51 @@ Saved entries are permanent — they will match automatically on every future ru
         )
 
         # Save button
-        save_col, _ = st.columns([2, 3])
+        save_col, dl_col2 = st.columns([2, 3])
         with save_col:
             if st.button("💾  Save Confirmed Pcodes to Lookup Table", use_container_width=True):
-                # Collect rows where the user actually typed a pcode
-                confirmed = edited_df[
-                    edited_df["Confirmed Pcode"].notna() &
-                    (edited_df["Confirmed Pcode"].str.strip() != "") &
-                    (edited_df["Confirmed Pcode"].str.strip() != edited_df["Best Guess Pcode"].str.strip())
-                    | (
-                        edited_df["Confirmed Pcode"].notna() &
-                        (edited_df["Confirmed Pcode"].str.strip() != "") &
-                        edited_df["Confidence"].isin(["LOW", "MEDIUM"])
-                    )
-                ].drop_duplicates("Vendor Property Name")
+                # Read edits directly from Streamlit's session state for the data_editor.
+                # This is more reliable than using the edited_df return value, which can
+                # miss edits when the user hasn't tabbed/clicked out of the cell first.
+                editor_state = st.session_state.get("review_editor", {})
+                edited_rows = editor_state.get("edited_rows", {})  # {str(row_idx): {col: val}}
 
-                if confirmed.empty:
-                    st.warning("No new pcodes to save — type the correct pcode in the 'Confirmed Pcode' column first.")
+                existing = load_custom_lookup(CUSTOM_LOOKUP_PATH)
+                new_entries = 0
+
+                if not edited_rows:
+                    st.warning("No edits detected. Type the correct pcode in the '✏️ Confirmed Pcode' column, press Tab to commit the cell, then click Save.")
                 else:
-                    # Load existing custom lookup and merge
-                    existing = load_custom_lookup(CUSTOM_LOOKUP_PATH)
-                    new_entries = 0
-                    for _, row in confirmed.iterrows():
-                        vendor_name_key = row["Vendor Property Name"].strip().upper()
-                        pcode = row["Confirmed Pcode"].strip()
-                        if pcode and pcode != "UNKNOWN":
-                            existing[vendor_name_key] = {
-                                "pcode": pcode,
-                                "official_name": row.get("Best Guess Property Name", ""),
-                                "confidence": "HIGH",
-                                "needs_review": False,
-                                "confirmed_by": "user",
-                                "confirmed_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
-                            }
-                            new_entries += 1
+                    for row_idx_str, changes in edited_rows.items():
+                        if "Confirmed Pcode" not in changes:
+                            continue
+                        pcode = str(changes["Confirmed Pcode"]).strip()
+                        if not pcode or pcode.lower() in ("unknown", "nan", "none", ""):
+                            continue
+                        try:
+                            row_idx = int(row_idx_str)
+                            vendor_name = display_df.iloc[row_idx]["Vendor Property Name"].strip()
+                            best_guess_name = display_df.iloc[row_idx].get("Best Guess Property Name", "")
+                        except (IndexError, KeyError):
+                            continue
+                        vendor_name_key = vendor_name.upper()
+                        existing[vendor_name_key] = {
+                            "pcode": pcode,
+                            "official_name": best_guess_name,
+                            "confidence": "HIGH",
+                            "needs_review": False,
+                            "confirmed_by": "user",
+                            "confirmed_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                        }
+                        new_entries += 1
 
-                    save_custom_lookup(existing, CUSTOM_LOOKUP_PATH)
-                    st.session_state["saved_msg"] = f"✅ {new_entries} pcode(s) saved to the lookup table. They will match automatically on all future runs."
-                    st.rerun()
+                    if new_entries == 0:
+                        st.warning("Pcodes were blank or 'UNKNOWN' — enter the correct Yardi pcode (e.g. hrmo) and try again.")
+                    else:
+                        save_custom_lookup(existing, CUSTOM_LOOKUP_PATH)
+                        st.session_state["custom_lookup_json"] = json.dumps(existing, indent=2)
+                        st.session_state["saved_msg"] = f"✅ {new_entries} pcode(s) saved to the lookup table. They will match automatically on all future runs in this session. Use the download button to keep them permanently."
+                        st.rerun()
 
         if st.session_state.get("saved_msg"):
             st.markdown(f"""
@@ -310,6 +333,19 @@ Saved entries are permanent — they will match automatically on every future ru
 {st.session_state['saved_msg']}
 </div>
 """, unsafe_allow_html=True)
+            # Offer download of the lookup table JSON for persistence across sessions
+            lookup_json = st.session_state.get("custom_lookup_json") or json.dumps(
+                load_custom_lookup(CUSTOM_LOOKUP_PATH), indent=2
+            )
+            if lookup_json and lookup_json != "{}":
+                st.download_button(
+                    label="⬇  Download Lookup Table (to restore on next session)",
+                    data=lookup_json,
+                    file_name="monarch_custom_lookup.json",
+                    mime="application/json",
+                    help="Save this file and re-upload it in the sidebar next time to restore your confirmed pcodes.",
+                    key="dl_lookup",
+                )
 
     else:
         st.markdown("""
