@@ -97,10 +97,10 @@ CURATED_LOOKUP = {
     "HIDDEN TREE APARTMENTS":               {"pcode": "HEMI",  "official_name": "Hidden Tree",                       "confidence": "HIGH",   "needs_review": False},
     "HUNTER'S RIDGE":                       {"pcode": "hroh",  "official_name": "Hunters Ridge",                     "confidence": "MEDIUM", "needs_review": True},
     "HUNTERS RIDGE":                        {"pcode": "hroh",  "official_name": "Hunters Ridge",                     "confidence": "MEDIUM", "needs_review": True},
-    "HUNTERS RIDGE APARTMENTS":             {"pcode": "hrmi",  "official_name": "Hunters Ridge Apartments",          "confidence": "HIGH",   "needs_review": False},
+    "HUNTERS RIDGE APARTMENTS":             {"pcode": "hrmo",  "official_name": "Hunters Ridge Apartments",          "confidence": "HIGH",   "needs_review": False},
     "HUNTLEY RIDGE NEW ALBANY":             {"pcode": "hain",  "official_name": "Huntley Ridge New Albany",          "confidence": "HIGH",   "needs_review": False},
     "HUNTLEY RIDGE OLDE TOWNE":             {"pcode": "otin",  "official_name": "Olde Towne Village",                "confidence": "LOW",    "needs_review": True},
-    "HUNTLEY RID@� TOnHOMES":              {"pcode": "htin",  "official_name": "Huntley Ridge Townhomes",           "confidence": "HIGH",   "needs_review": False},
+    "HUNTLEY RIDGE TOWNHOMES":              {"pcode": "htin",  "official_name": "Huntley Ridge Townhomes",           "confidence": "HIGH",   "needs_review": False},
     "ICON LOUISVILLE":                      {"pcode": "icky",  "official_name": "Icon",                              "confidence": "HIGH",   "needs_review": False},
     "INDIAN SPRINGS APARTMENTS":            {"pcode": "isin",  "official_name": "Indian Springs",                    "confidence": "HIGH",   "needs_review": False},
     "INDIAN WOODS TOWNHOMES":               {"pcode": "iwin",  "official_name": "Indian Woods",                      "confidence": "HIGH",   "needs_review": False},
@@ -155,9 +155,9 @@ CURATED_LOOKUP = {
     "THE JUNCTION AT RAMSEY":               {"pcode": "tjnc",  "official_name": "The Junction at Ramsey & Carver",   "confidence": "HIGH",   "needs_review": False},
     "THE LANDING APARTMENT HOMES":          {"pcode": "tlnc",  "official_name": "The Landing Apartment Homes",       "confidence": "HIGH",   "needs_review": False},
     "THE MADISON":                          {"pcode": "tmnc",  "official_name": "The Madison Apartments",            "confidence": "HIGH",   "needs_review": False},
-    "THE OAKS AT PRAIRIE VIEW":             {"pcode": "tomo",  "official_name": "The Oaks At Prairie View",          "confidence": "HIGH",   "needs_review": False},
+    "THE OAKS AT PRAIRIE VIEW":             {"pcode": "tomo",  "official_name": "The Oaks At Prairie View",         "confidence": "HIGH",   "needs_review": False},
     "THE PARK":                             {"pcode": "tptx",  "official_name": "The Park",                          "confidence": "MEDIUM", "needs_review": True},
-    "THE PARK APARTMENTS HOMES":            {"pcode": "pknc",  "official_name": "The Park Apartment Homes",          "confidence": "HIGH",   "needs_review": False},
+    "THE PARK APARTMENTS HOMES":            {"pcode": "pknc",  "official_name": "The Park Apartment Homes",           "confidence": "HIGH",   "needs_review": False},
     "THE RESIDENZ":                         {"pcode": "rzoh",  "official_name": "The Residenz",                      "confidence": "HIGH",   "needs_review": False},
     "UNION AT COOPER HILL I-IV":            {"pcode": "CHAL",  "official_name": "Cooper Hill",                       "confidence": "LOW",    "needs_review": True},
     "VALLEY STREAM":                        {"pcode": "vsoh",  "official_name": "Valley Stream Apartments",          "confidence": "HIGH",   "needs_review": False},
@@ -173,7 +173,7 @@ CURATED_LOOKUP = {
     "WILLIAMSBURG WAY":                     {"pcode": "wwin",  "official_name": "Williamsburg Way",                  "confidence": "HIGH",   "needs_review": False},
     "WILLOW RUN":                           {"pcode": "wrnc",  "official_name": "Willow Run",                        "confidence": "HIGH",   "needs_review": False},
     "WOODHOLLOW APARTMENTS":                {"pcode": "whmo",  "official_name": "Woodhollow Apartments",             "confidence": "HIGH",   "needs_review": False},
-    "WOODS OF POST HOUSE":                  {"pcode": "wptn",  "official_name": "Woods of Post House",               "confidence": "HIGH",   "needs_review": False},
+    "WOODS OF POST HOUSE2:                  {"pcode": "wptn",  "official_name": "Woods of Post House",               "confidence": "HIGH",   "needs_review": False},
 }
 
 
