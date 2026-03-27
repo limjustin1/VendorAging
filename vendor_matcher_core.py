@@ -173,7 +173,7 @@ CURATED_LOOKUP = {
     "WILLIAMSBURG WAY":                     {"pcode": "wwin",  "official_name": "Williamsburg Way",                  "confidence": "HIGH",   "needs_review": False},
     "WILLOW RUN":                           {"pcode": "wrnc",  "official_name": "Willow Run",                        "confidence": "HIGH",   "needs_review": False},
     "WOODHOLLOW APARTMENTS":                {"pcode": "whmo",  "official_name": "Woodhollow Apartments",             "confidence": "HIGH",   "needs_review": False},
-    "WOODS OF POST HOUSE2:                  {"pcode": "wptn",  "official_name": "Woods of Post House",               "confidence": "HIGH",   "needs_review": False},
+    "WOODS OF POST HOUSE":                  {"pcode": "wptn",  "official_name": "Woods of Post House",               "confidence": "HIGH",   "needs_review": False},
 }
 
 
