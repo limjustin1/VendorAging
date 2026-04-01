@@ -23,11 +23,82 @@ except ImportError:
 
 
 # ---------------------------------------------------------------------------
-# Custom lookup persistence — saved by the user via the app UI
+# Vendor configurations
+# Each vendor aging report has its own column layout.
+# prop_col     : column containing the property/customer name
+# invoice_col  : column containing the invoice number
+# sheet        : Excel sheet name to read
+# header_row   : 0-based row index for the header (passed to pd.read_excel)
+# ffill_prop   : True if the property name only appears on the first row of a
+#                group and must be forward-filled down to child rows
+# ---------------------------------------------------------------------------
+VENDOR_CONFIGS = {
+    "Chadwell": {
+        "sheet": "Management Company Invoice Summ",
+        "header_row": 2,
+        "prop_col": "Customer",
+        "invoice_col": "Invoice #",
+    },
+    "Ferguson": {
+        "sheet": "Export",
+        "header_row": 0,
+        "prop_col": "Customer Name",
+        "invoice_col": "Invoice ID",
+    },
+    "HD Supply": {
+        "sheet": "Detail",
+        "header_row": 0,
+        "prop_col": "Name.1",       # 4th column — site-level property name
+        "invoice_col": "Invoice",
+    },
+    "Lowes": {
+        "sheet": "transaction",
+        "header_row": 4,
+        "prop_col": "Account Name",
+        "invoice_col": "Transaction Number",
+    },
+    "Sherwin-Williams": {
+        "sheet": "Open_Transcations",
+        "header_row": 2,
+        "prop_col": "Account Name",
+        "invoice_col": "Invoice #",
+    },
+    "Staples": {
+        "sheet": "Invoices",
+        "header_row": 0,
+        "prop_col": "Bill To Customer",
+        "invoice_col": "Number",
+    },
+    "Lowes Pro": {
+        "sheet": "Sheet 1",
+        "header_row": 0,
+        "prop_col": "Customer Name",
+        "invoice_col": "Invoice-suf#",
+        "ffill_prop": True,     # property name only on first row of each group
+    },
+}
+
+VENDOR_NAMES = sorted(VENDOR_CONFIGS.keys())
+
+
+# ---------------------------------------------------------------------------
+# Per-vendor custom lookup persistence
 # ---------------------------------------------------------------------------
 
+def _vendor_slug(vendor_name: str) -> str:
+    """Convert vendor display name to a safe filename slug."""
+    slug = vendor_name.lower()
+    slug = re.sub(r"[^a-z0-9]+", "_", slug).strip("_")
+    return slug
+
+
+def get_vendor_lookup_filename(vendor_name: str) -> str:
+    """Return the JSON filename for a given vendor's lookup table."""
+    return f"custom_lookup_{_vendor_slug(vendor_name)}.json"
+
+
 def load_custom_lookup(path):
-    """Load user-confirmed pcodes from custom_lookup.json. Returns {} if missing."""
+    """Load user-confirmed pcodes from a lookup JSON file. Returns {} if missing."""
     try:
         p = Path(path)
         if p.exists():
@@ -39,7 +110,7 @@ def load_custom_lookup(path):
 
 
 def save_custom_lookup(data, path):
-    """Persist user-confirmed pcodes to custom_lookup.json."""
+    """Persist user-confirmed pcodes to a lookup JSON file."""
     with open(Path(path), "w", encoding="utf-8") as f:
         json.dump(data, f, indent=2, ensure_ascii=False)
 
@@ -155,9 +226,9 @@ CURATED_LOOKUP = {
     "THE JUNCTION AT RAMSEY":               {"pcode": "tjnc",  "official_name": "The Junction at Ramsey & Carver",   "confidence": "HIGH",   "needs_review": False},
     "THE LANDING APARTMENT HOMES":          {"pcode": "tlnc",  "official_name": "The Landing Apartment Homes",       "confidence": "HIGH",   "needs_review": False},
     "THE MADISON":                          {"pcode": "tmnc",  "official_name": "The Madison Apartments",            "confidence": "HIGH",   "needs_review": False},
-    "THE OAKS AT PRAIRIE VIEW":             {"pcode": "tomo",  "official_name": "The Oaks At Prairie View",         "confidence": "HIGH",   "needs_review": False},
+    "THE OAKS AT PRAIRIE VIEW":             {"pcode": "tomo",  "official_name": "The Oaks At Prairie View",          "confidence": "HIGH",   "needs_review": False},
     "THE PARK":                             {"pcode": "tptx",  "official_name": "The Park",                          "confidence": "MEDIUM", "needs_review": True},
-    "THE PARK APARTMENTS HOMES":            {"pcode": "pknc",  "official_name": "The Park Apartment Homes",           "confidence": "HIGH",   "needs_review": False},
+    "THE PARK APARTMENTS HOMES":            {"pcode": "pknc",  "official_name": "The Park Apartment Homes",          "confidence": "HIGH",   "needs_review": False},
     "THE RESIDENZ":                         {"pcode": "rzoh",  "official_name": "The Residenz",                      "confidence": "HIGH",   "needs_review": False},
     "UNION AT COOPER HILL I-IV":            {"pcode": "CHAL",  "official_name": "Cooper Hill",                       "confidence": "LOW",    "needs_review": True},
     "VALLEY STREAM":                        {"pcode": "vsoh",  "official_name": "Valley Stream Apartments",          "confidence": "HIGH",   "needs_review": False},
@@ -181,14 +252,15 @@ CURATED_LOOKUP = {
 # Helpers
 # ---------------------------------------------------------------------------
 
+import unicodedata
+
+
 def normalize(s):
     if not isinstance(s, str):
         return ""
     s = unicodedata.normalize("NFKC", s) if hasattr(unicodedata, "normalize") else s
     s = re.sub(r"\s+", " ", s.strip().upper())
     return s
-
-import unicodedata
 
 
 def load_property_list(path):
@@ -246,53 +318,94 @@ def match_vendor_name(vendor_raw, norm_to_pcode, threshold, custom_lookup=None):
             "match_score": score}
 
 
-def find_header_row(path):
-    df_raw = pd.read_excel(path, sheet_name=0, header=None)
-    for i, row in df_raw.iterrows():
-        if any("Invoice #" in str(v) for v in row.values):
-            return i
-    return 0
+def _load_vendor_df(vendor_path, vendor_name):
+    """
+    Load the vendor aging Excel into a DataFrame using vendor-specific settings.
+    Returns (df, prop_col, invoice_col).
+    """
+    cfg = VENDOR_CONFIGS.get(vendor_name)
+
+    xl = pd.ExcelFile(vendor_path)
+
+    if cfg:
+        sheet      = cfg["sheet"] if cfg["sheet"] in xl.sheet_names else xl.sheet_names[0]
+        header_row = cfg["header_row"]
+        prop_col   = cfg["prop_col"]
+        invoice_col = cfg.get("invoice_col")
+        ffill_prop  = cfg.get("ffill_prop", False)
+    else:
+        # Fallback: auto-detect header row by looking for "Invoice #"
+        sheet = xl.sheet_names[0]
+        df_raw = pd.read_excel(vendor_path, sheet_name=sheet, header=None)
+        header_row = 0
+        for i, row in df_raw.iterrows():
+            if any("Invoice #" in str(v) for v in row.values):
+                header_row = i
+                break
+        ffill_prop  = False
+        invoice_col = None
+        prop_col    = None
+
+    df = pd.read_excel(vendor_path, sheet_name=sheet, header=header_row)
+    df.columns = [str(c).strip() for c in df.columns]
+
+    # Forward-fill property name for grouped layouts (e.g. Lowes Pro)
+    if ffill_prop and prop_col and prop_col in df.columns:
+        df[prop_col] = df[prop_col].replace("", pd.NA).ffill()
+
+    # Auto-detect prop_col if not set by config
+    if not prop_col:
+        prop_col = next((c for c in df.columns if "customer" in c.lower()), None)
+        if prop_col is None:
+            for c in df.columns:
+                sample = df[c].dropna().astype(str)
+                if sample.str.len().mean() > 10:
+                    prop_col = c
+                    break
+        if prop_col is None:
+            raise ValueError("Could not find the property name / customer column.")
+
+    # Auto-detect invoice_col if not set
+    if not invoice_col:
+        invoice_col = next((c for c in df.columns if "invoice" in c.lower()), None)
+
+    return df, prop_col, invoice_col
 
 
 # ---------------------------------------------------------------------------
 # Main entry point
 # ---------------------------------------------------------------------------
 
-def run_matcher(vendor_path, prop_path, output_dest, fuzzy_threshold=75, custom_lookup_path=None):
+def run_matcher(vendor_path, prop_path, output_dest, fuzzy_threshold=75,
+                custom_lookup_path=None, vendor_name=None):
     """
     vendor_path        : path or file-like for the vendor aging Excel
     prop_path          : path or file-like for the property list Excel
     output_dest        : path or BytesIO to write the output Excel into
-    custom_lookup_path : optional path to custom_lookup.json
+    custom_lookup_path : optional path to the vendor-specific custom_lookup JSON
+    vendor_name        : optional vendor name (key in VENDOR_CONFIGS) — enables
+                         exact column mapping instead of auto-detection
     Returns            : (df_result, review_df, n_total, n_review)
     """
     norm_to_pcode = load_property_list(prop_path)
     custom_lookup = load_custom_lookup(custom_lookup_path) if custom_lookup_path else {}
 
-    # Auto-detect sheet
-    xl = pd.ExcelFile(vendor_path)
-    sheet = xl.sheet_names[0]
-    header_row = find_header_row(vendor_path)
-    df = pd.read_excel(vendor_path, sheet_name=sheet, header=header_row)
-    df.columns = [str(c).strip() for c in df.columns]
+    df, prop_col, invoice_col = _load_vendor_df(vendor_path, vendor_name)
 
-    # Identify the customer/property name column
-    customer_col = next((c for c in df.columns if "customer" in c.lower()), None)
-    if customer_col is None:
-        # Try to find a column with long text strings (likely property names)
-        for c in df.columns:
-            sample = df[c].dropna().astype(str)
-            if sample.str.len().mean() > 10:
-                customer_col = c
-                break
-    if customer_col is None:
-        raise ValueError("Could not find the property name / customer column.")
+    # Clean the property column
+    df[prop_col] = df[prop_col].astype(str).str.strip()
+    df = df[df[prop_col].notna() & (df[prop_col] != "nan") & (df[prop_col] != "")].copy()
 
-    df[customer_col] = df[customer_col].astype(str).str.strip()
-    df = df[df[customer_col].notna() & (df[customer_col] != "nan")].copy()
+    # For Sherwin-Williams, drop the summary "Total" row
+    if vendor_name == "Sherwin-Williams":
+        df = df[~df[prop_col].str.upper().isin(["TOTAL", "GRAND TOTAL"])].copy()
+
+    # For HD Supply, the parent company row appears with the company name — skip it
+    if vendor_name == "HD Supply":
+        df = df[~df[prop_col].str.contains("Monarch Investment", case=False, na=False)].copy()
 
     results = [match_vendor_name(v, norm_to_pcode, fuzzy_threshold, custom_lookup)
-               for v in df[customer_col]]
+               for v in df[prop_col]]
 
     df["Matched Pcode"]         = [r["pcode"]         for r in results]
     df["Matched Property Name"] = [r["official_name"] for r in results]
@@ -303,15 +416,14 @@ def run_matcher(vendor_path, prop_path, output_dest, fuzzy_threshold=75, custom_
     n_total  = len(df)
     n_review = int(df["Needs Review"].sum())
 
-    # review_df: ALL flagged rows (not deduplicated) — includes every invoice row
-    invoice_col = next((c for c in df.columns if "invoice" in c.lower()), None)
+    # review_df: ALL flagged rows — includes every invoice row
     review_keep = ([invoice_col] if invoice_col else []) + \
-                  [customer_col, "Matched Pcode", "Matched Property Name",
+                  [prop_col, "Matched Pcode", "Matched Property Name",
                    "Match Confidence", "Match Method"]
     review_df = (df[df["Needs Review"] == True][review_keep]
                  .reset_index(drop=True))
 
-    _write_excel(df, customer_col, output_dest)
+    _write_excel(df, prop_col, output_dest)
     return df, review_df, n_total, n_review
 
 
@@ -377,7 +489,9 @@ def _write_excel(df, customer_col, dest):
 
     col_w = {customer_col: 42, "Matched Pcode": 14, "Matched Property Name": 36,
              "Match Confidence": 14, "Needs Review": 13, "Invoice #": 18,
-             "GL Post Date": 16, "PO #": 16, "Subtotal": 12, "Tax": 10, "Grand Total": 13}
+             "Invoice ID": 18, "Invoice": 18, "Number": 18, "Transaction Number": 22,
+             "Invoice-suf#": 20, "GL Post Date": 16, "PO #": 16,
+             "Subtotal": 12, "Tax": 10, "Grand Total": 13}
     for ci, col in enumerate(ordered, 1):
         ws.column_dimensions[get_column_letter(ci)].width = col_w.get(col, 16)
     ws.freeze_panes = "A2"
