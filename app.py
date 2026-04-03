@@ -191,7 +191,8 @@ if run_btn and vendor_file is not None:
             # Identify prop_col used
             from vendor_matcher_core import VENDOR_CONFIGS
             vcfg = VENDOR_CONFIGS.get(vendor_name, {})
-            st.session_state["prop_col"] = vcfg.get("prop_col", "Customer")
+            st.session_state["prop_col"]     = vcfg.get("prop_col", "Customer")
+            st.session_state["invoice_col"]  = vcfg.get("invoice_col", None)
         except Exception as e:
             st.error(f"Matching failed: {e}")
             st.stop()
@@ -204,7 +205,8 @@ if "match_result" in st.session_state:
     n_review   = st.session_state["n_review"]
     active_vendor = st.session_state.get("vendor_name", vendor_name)
     active_lookup_path = st.session_state.get("lookup_path", str(lookup_path))
-    prop_col   = st.session_state.get("prop_col", "Customer")
+    prop_col    = st.session_state.get("prop_col", "Customer")
+    invoice_col = st.session_state.get("invoice_col", None)
 
     st.markdown("---")
     st.subheader(f"Results — {active_vendor}")
@@ -243,33 +245,46 @@ if "match_result" in st.session_state:
             # fallback: find a likely column
             prop_col = review_df.columns[0]
 
-        display_df = (
-            review_df
-            .drop_duplicates(subset=[prop_col])
-            .reset_index(drop=True)
-            .rename(columns={
-                prop_col: "Vendor Property Name",
-                "Matched Pcode": "Best Guess Pcode",
-                "Matched Property Name": "Best Guess Property Name",
-            })
-        )
+        # Aggregate invoice numbers across all rows for each unique property name
+        inv_col_in_df = invoice_col if (invoice_col and invoice_col in review_df.columns) else None
+        if inv_col_in_df:
+            inv_agg = (
+                review_df.groupby(prop_col)[inv_col_in_df]
+                .apply(lambda x: ", ".join(
+                    str(v) for v in x.dropna().unique()
+                    if str(v) not in ("nan", "", "None")
+                ))
+                .reset_index()
+                .rename(columns={inv_col_in_df: "Invoice #(s)"})
+            )
+            base_df = review_df.drop_duplicates(subset=[prop_col]).reset_index(drop=True)
+            display_df = base_df.merge(inv_agg, on=prop_col, how="left")
+        else:
+            display_df = review_df.drop_duplicates(subset=[prop_col]).reset_index(drop=True)
+
+        display_df = display_df.rename(columns={
+            prop_col: "Vendor Property Name",
+            "Matched Pcode": "Best Guess Pcode",
+            "Matched Property Name": "Best Guess Property Name",
+        })
 
         display_df["Confirmed Pcode"] = ""
 
         editable_cols = {
-            "Vendor Property Name":   st.column_config.TextColumn(disabled=True),
-            "Best Guess Pcode":       st.column_config.TextColumn(disabled=True),
+            "Vendor Property Name":     st.column_config.TextColumn(disabled=True),
+            "Invoice #(s)":             st.column_config.TextColumn(disabled=True),
+            "Best Guess Pcode":         st.column_config.TextColumn(disabled=True),
             "Best Guess Property Name": st.column_config.TextColumn(disabled=True),
-            "Match Confidence":       st.column_config.TextColumn(disabled=True),
-            "Match Method":           st.column_config.TextColumn(disabled=True),
-            "Confirmed Pcode":        st.column_config.TextColumn(
-                                          help="Type the correct Yardi pcode here",
-                                          required=False),
+            "Match Confidence":         st.column_config.TextColumn(disabled=True),
+            "Match Method":             st.column_config.TextColumn(disabled=True),
+            "Confirmed Pcode":          st.column_config.TextColumn(
+                                            help="Type the correct Yardi pcode here",
+                                            required=False),
         }
 
-        keep_cols = [c for c in ["Vendor Property Name", "Best Guess Pcode",
-                                  "Best Guess Property Name", "Match Confidence",
-                                  "Match Method", "Confirmed Pcode"]
+        keep_cols = [c for c in ["Vendor Property Name", "Invoice #(s)",
+                                  "Best Guess Pcode", "Best Guess Property Name",
+                                  "Match Confidence", "Match Method", "Confirmed Pcode"]
                      if c in display_df.columns or c == "Confirmed Pcode"]
 
         st.data_editor(
@@ -313,7 +328,7 @@ if "match_result" in st.session_state:
             if saved_count:
                 save_custom_lookup(existing, active_lookup_path)
                 st.success(
-                 f"✅ {saved_count} pcode(s) saved to **{active_vendor}** lookup table."
+                    f"✅ {saved_count} pcode(s) saved to **{active_vendor}** lookup table."
                 )
                 # Offer download of the updated lookup
                 lookup_json = json.dumps(existing, indent=2, ensure_ascii=False)
