@@ -248,12 +248,18 @@ if "match_result" in st.session_state:
         # Aggregate invoice numbers across all rows for each unique property name
         inv_col_in_df = invoice_col if (invoice_col and invoice_col in review_df.columns) else None
         if inv_col_in_df:
+            def _fmt_inv(x):
+                for v in x.dropna():
+                    s = str(v)
+                    if s not in ("nan", "", "None"):
+                        # strip trailing .0 from numeric invoice numbers
+                        if s.endswith(".0") and s[:-2].isdigit():
+                            s = s[:-2]
+                        return s
+                return ""
             inv_agg = (
                 review_df.groupby(prop_col)[inv_col_in_df]
-                .apply(lambda x: ", ".join(
-                    str(v) for v in x.dropna().unique()
-                    if str(v) not in ("nan", "", "None")
-                ))
+                .apply(_fmt_inv)
                 .reset_index()
                 .rename(columns={inv_col_in_df: "Invoice #(s)"})
             )
