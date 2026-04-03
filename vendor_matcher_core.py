@@ -61,7 +61,7 @@ VENDOR_CONFIGS = {
         "sheet": "Open_Transcations",
         "header_row": 2,
         "prop_col": "Account Name",
-        "invoice_col": "Invoice #",
+        "invoice_col": "Extended Invoice #",
     },
     "Staples": {
         "sheet": "Invoices",
@@ -283,7 +283,8 @@ def fuzzy_match(vendor_norm, norm_to_pcode, threshold):
 
     matched_norm, score, _ = best
     official_name, pcode = norm_to_pcode[matched_norm]
-    needs_review = score < threshold
+    # Flag both MEDIUM (score < 90) and LOW (score < threshold) for review
+    needs_review = score < 90
     return pcode, official_name, score, needs_review
 
 
