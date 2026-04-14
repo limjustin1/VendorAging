@@ -25,8 +25,7 @@ from vendor_matcher_core import (
 # ---------------------------------------------------------------------------
 BASE_DIR         = Path(__file__).parent
 PROP_LIST_PATH   = BASE_DIR / "PropertyList (9).xlsx"
-CUSTOM_LOOKUP_DIR = BASE_DIR / "custom_lookups"
-CUSTOM_LOOKUP_DIR.mkdir(exist_ok=True)
+CUSTOM_LOOKUP_DIR = BASE_DIR  # lookups live directly in the app folder alongside other project files
 
 
 def get_lookup_path(vendor_name: str) -> Path:
@@ -53,8 +52,8 @@ with st.sidebar:
 
     st.markdown("### Vendor Lookup Tables")
     st.caption(
-        "Each vendor has its own lookup table. Download after confirming pcodes "
-        "so you can restore them on the next session."
+        "Each vendor has its own lookup table. Confirmed pcodes are saved "
+        "automatically — no download needed."
     )
 
     sidebar_vendor = st.selectbox(
@@ -334,16 +333,8 @@ if "match_result" in st.session_state:
             if saved_count:
                 save_custom_lookup(existing, active_lookup_path)
                 st.success(
-                    f"✅ {saved_count} pcode(s) saved to **{active_vendor}** lookup table."
-                )
-                # Offer download of the updated lookup
-                lookup_json = json.dumps(existing, indent=2, ensure_ascii=False)
-                st.download_button(
-                    label=f"⬇  Download updated {active_vendor} lookup (save for next session)",
-                    data=lookup_json,
-                    file_name=get_vendor_lookup_filename(active_vendor),
-                    mime="application/json",
-                    key="dl_lookup_after_save",
+                    f"✅ {saved_count} pcode(s) saved to **{active_vendor}** lookup table. "
+                    f"The lookup file has been updated automatically — no download needed."
                 )
             else:
                 st.warning(
